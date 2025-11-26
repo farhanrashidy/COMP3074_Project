@@ -192,13 +192,22 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        // Removed background color to remove the dark overlay
     },
     modalContent: {
         width: '90%',
         backgroundColor: '#fff',
         padding: 20,
         borderRadius: 10,
+        // Shadow for iOS
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        // Shadow for Android
         elevation: 5,
     },
     modalTitle: {
