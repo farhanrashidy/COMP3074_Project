@@ -1,161 +1,225 @@
-import { useState } from 'react';
-import { View, TextInput, Button, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, TextInput, Button, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useAuth } from '../../hooks/useAuth';
 
-export default function SignInPage() {
-  const { signIn, signUp } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState(null);
+const RegisterModal = ({ visible, onClose }) => {
+    const { signUp } = useAuth();
+    const [name, setName] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
+    const [error, setError] = useState(null);
+    const [success, setSuccess] = useState(null);
+    const [loading, setLoading] = useState(false);
 
-  const submit = async () => { // Removed 'e' since it's not a web event
-    const { loginError } = await signIn(email, password);
-    if (loginError) {
-      setError(loginError.message); 
-    } else {
-      setError(null);
-    }
-  };
+    const handleSignUp = async () => {
+        if (!name || !email || !password || !confirmPassword) {
+            setError('Please fill out all fields.');
+            return;
+        }
+        if (password !== confirmPassword) {
+            setError("Passwords don't match.");
+            return;
+        }
 
-  const RegisterModal = () => {
-    const [signUpData, setSignUpData] = useState({
-      email: '',
-      password: '',
-      confirmPassword: '',
-    });
+        setLoading(true);
+        setError(null);
+        setSuccess(null);
+
+        const { error: signUpError, data } = await signUp(email, password, name);
+
+        setLoading(false);
+
+        if (signUpError) {
+            setError(signUpError.message);
+        } else {
+            setSuccess(data.message);
+            // Clear form after a delay
+            setTimeout(() => {
+                onClose();
+                setSuccess(null);
+                setName('');
+                setEmail('');
+                setPassword('');
+                setConfirmPassword('');
+            }, 2000);
+        }
+    };
 
     return (
-      <View className="registerModal" style={styles.registerModal}>
-        {/* Form fields for registration would go here */}
-        <View style={styles.modalContent}>
-          <Text style={{ fontSize: 18, fontWeight: '600', marginBottom: 12 }}>Create an account</Text>
+        <Modal
+            animationType="slide"
+            transparent={true}
+            visible={visible}
+            onRequestClose={onClose}
+        >
+            <View style={styles.modalContainer}>
+                <View style={styles.modalContent}>
+                    <Text style={styles.modalTitle}>Create an account</Text>
 
-          <TextInput
-            style={{ height: 40, borderColor: 'gray', borderWidth: 1, marginBottom: 10, paddingHorizontal: 10 }}
-            placeholder="Email"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={signUpData.email}
-            onChangeText={(text) => setSignUpData(prev => ({ ...prev, email: text }))}
-          />
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Name"
+                        value={name}
+                        onChangeText={setName}
+                        autoCapitalize="words"
+                    />
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Email"
+                        value={email}
+                        onChangeText={setEmail}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                    />
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Password"
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry
+                    />
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Confirm Password"
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                        secureTextEntry
+                    />
 
-          <TextInput
-            style={{ height: 40, borderColor: 'gray', borderWidth: 1, marginBottom: 10, paddingHorizontal: 10 }}
-            placeholder="Password"
-            secureTextEntry
-            value={signUpData.password}
-            onChangeText={(text) => setSignUpData(prev => ({ ...prev, password: text }))}
-          />
+                    {loading && <ActivityIndicator style={{ marginBottom: 10 }} />}
+                    {error && <Text style={styles.errorTextModal}>{error}</Text>}
+                    {success && <Text style={styles.successText}>{success}</Text>}
 
-          <TextInput
-            style={{ height: 40, borderColor: 'gray', borderWidth: 1, marginBottom: 14, paddingHorizontal: 10 }}
-            placeholder="Confirm Password"
-            secureTextEntry
-            value={signUpData.confirmPassword}
-            onChangeText={(text) => setSignUpData(prev => ({ ...prev, confirmPassword: text }))}
-          />
+                    <View style={styles.buttonRow}>
+                        <Button title="Cancel" onPress={onClose} color="#666" />
+                        <Button title="Register" onPress={handleSignUp} disabled={loading} />
+                    </View>
+                </View>
+            </View>
+        </Modal>
+    );
+};
 
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Button title="Cancel" onPress={() => setRegisterModalOpen(false)} />
 
-            <Button
-              title="Register"
-              onPress={() => {
-                // simple client-side validation
-                if (!signUpData.email || !signUpData.password || !signUpData.confirmPassword) {
-                  setSignUpData(prev => ({ ...prev, error: 'Please fill out all fields.' }));
-                  return;
-                }
-                if (signUpData.password !== signUpData.confirmPassword) {
-                  setSignUpData(prev => ({ ...prev, error: "Passwords don't match." }));
-                  return;
-                }
+export default function SignInPage() {
+    const { signIn } = useAuth();
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState(null);
+    const [modalVisible, setModalVisible] = useState(false);
 
-                setSignUpData(prev => ({ ...prev, error: null }));
-                signUp(signUpData.email, signUpData.password);
-                setRegisterModalOpen(false);
-              }}
+    const submit = async () => {
+        const { loginError } = await signIn(email, password);
+        if (loginError) {
+            setError(loginError.message);
+        } else {
+            setError(null);
+        }
+    };
+
+    return (
+        <View style={styles.container}>
+            <RegisterModal visible={modalVisible} onClose={() => setModalVisible(false)} />
+
+            <Text style={styles.title}>Welcome!</Text>
+
+            <TextInput
+                style={styles.input}
+                placeholder="example@email.com"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
             />
-          </View>
+            <TextInput
+                style={styles.input}
+                placeholder="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+            />
 
-          {signUpData.error ? (
-            <Text style={{ color: 'red', marginTop: 12, textAlign: 'center' }}>{signUpData.error}</Text>
-          ) : null}
+            {error && <Text style={styles.errorText}>{error}</Text>}
+
+            <View style={styles.buttonContainer}>
+                <Button title="Sign In" onPress={submit} />
+            </View>
+            <TouchableOpacity onPress={() => setModalVisible(true)}>
+                <Text style={styles.registerText}>Don't have an account? Sign Up</Text>
+            </TouchableOpacity>
         </View>
-      </View>
-    )
-  };
-
-  const [registerModalOpen, setRegisterModalOpen] = useState(false);
-
-  const openRegisterModal = () => {
-    setRegisterModalOpen(true);
-  }
-
-  return (
-    <View style={styles.container}>
-      {registerModalOpen && <RegisterModal />}
-      <TextInput
-        style={styles.input}
-        placeholder="example@email.com"
-        value={email}
-        onChangeText={setEmail} // Use onChangeText for TextInput
-        keyboardType="email-address"
-        autoCapitalize="none"
-        required
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword} // Use onChangeText for TextInput
-        secureTextEntry
-        required
-      />
-      <Button title="Sign In" onPress={submit} />
-      <Button title="Register Now" onPress={openRegisterModal} />
-      {error && <Text style={styles.errorText}>{error}</Text>}
-    </View>
-  );
+    );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    position: 'relative', // allow absolutely positioned children to overlay
-    justifyContent: 'center',
-    padding: 20,
-  },
-  input: {
-    height: 40,
-    borderColor: 'gray',
-    borderWidth: 1,
-    marginBottom: 10,
-    paddingHorizontal: 10,
-  },
-  errorText: {
-    color: 'red',
-    marginTop: 10,
-    textAlign: 'center',
-  },
-  registerModal: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 9999,
-    elevation: 9999, // Android
-  },
-  modalContent: {
-    width: '90%',
-    backgroundColor: '#fff',
-    padding: 20,
-    borderRadius: 8,
-  },
+    container: {
+        flex: 1,
+        justifyContent: 'center',
+        padding: 20,
+        backgroundColor: '#f5f5f5',
+    },
+    title: {
+        fontSize: 28,
+        fontWeight: 'bold',
+        textAlign: 'center',
+        marginBottom: 30,
+    },
+    input: {
+        height: 50,
+        borderColor: '#ddd',
+        borderWidth: 1,
+        borderRadius: 8,
+        marginBottom: 15,
+        paddingHorizontal: 15,
+        backgroundColor: '#fff',
+    },
+    errorText: {
+        color: 'red',
+        textAlign: 'center',
+        marginBottom: 10,
+    },
+    buttonContainer: {
+        marginBottom: 15,
+    },
+    registerText: {
+        color: '#007AFF',
+        textAlign: 'center',
+        fontWeight: '600',
+    },
+    // Modal Styles
+    modalContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    },
+    modalContent: {
+        width: '90%',
+        backgroundColor: '#fff',
+        padding: 20,
+        borderRadius: 10,
+        elevation: 5,
+    },
+    modalTitle: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        marginBottom: 20,
+        textAlign: 'center',
+    },
+    buttonRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        marginTop: 20,
+    },
+    errorTextModal: {
+        color: 'red',
+        textAlign: 'center',
+        marginTop: 10,
+    },
+    successText: {
+        color: 'green',
+        textAlign: 'center',
+        marginTop: 10,
+    },
 });

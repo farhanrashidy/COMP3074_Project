@@ -16,7 +16,7 @@ const ProfilePage = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.name}>{user.name || 'User'}</Text>
+      <Text style={styles.name}>{user.username || 'User'}</Text>
       <Text>{user.email}</Text>
       <Text style={styles.small}>ID: {user.id}</Text>
       <View style={styles.buttonContainer}>

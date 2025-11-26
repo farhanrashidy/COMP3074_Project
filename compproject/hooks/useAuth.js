@@ -1,7 +1,7 @@
 import { createContext, useState, useEffect, useContext } from 'react';
 import * as SecureStore from 'expo-secure-store';
 
-const AUTH_ENDPOINT = process.env.EXPO_PUBLIC_API_URL ? `${process.env.EXPO_PUBLIC_API_URL}/api` : '';
+const AUTH_ENDPOINT = process.env.EXPO_PUBLIC_API_URL ? `${process.env.EXPO_PUBLIC_API_URL}` : '';
 const TOKEN_KEY = 'auth_token';
 
 const AuthContext = createContext();
@@ -69,30 +69,40 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const signUp = async (email, password) => {
+const signUp = async (email, password, name) => {
     try {
       if (!AUTH_ENDPOINT) {
-        console.error("API URL not configured");
-        return { signUpError: { message: "API URL not configured" }};
-      }
-      const response = await fetch(`${AUTH_ENDPOINT}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        return { signUpError: { message: data.message || 'Sign-up failed' } };
+        const errorMessage = "API URL not configured";
+        console.error(errorMessage);
+        return { error: { message: errorMessage }};
       }
       
-      setToken(data.token);
-      setUser(data.user);
-      await SecureStore.setItemAsync(TOKEN_KEY, data.token);
-      return { user: data.user };
+      const endpoint = `${AUTH_ENDPOINT}/auth/signup`;
+      console.log('Calling API endpoint:', endpoint);
 
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, name }),
+      });
+
+      let data;
+      try {
+        data = await response.json();
+      } catch (e) {
+        const responseText = await response.text();
+        console.error("Failed to parse JSON response:", responseText);
+        return { error: { message: `Server returned an invalid response. Status: ${response.status}` } };
+      }
+
+      if (!response.ok) {
+        return { error: { message: data.message || 'Sign-up failed' } };
+      }
+      
+      return { data };
     } catch (error) {
-      return { signUpError: { message: error.message || 'An error occurred' } };
+      console.error('Sign-up network error:', error);
+      return { error: { message: error.message || 'An error occurred' } };
     }
   };
 

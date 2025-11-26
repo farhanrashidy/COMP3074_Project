@@ -23,53 +23,38 @@ app.post('/api/auth/login', async (req, res) => {
         return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    console.log(`Login attempt for email: ${email}`);
-
-    const { data, error } = await supabase.auth.signInWithPassword({ 
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ 
         email: email,
         password: password,
     });
 
-    if (error) {
-        console.error('Supabase login error:', error.message);
-        return res.status(401).json({ message: error.message });
+    if (authError) {
+        console.error('Supabase login error:', authError.message);
+        return res.status(401).json({ message: authError.message });
+    }
+    
+    if (!authData.user) {
+        return res.status(500).json({ message: 'Login successful, but no user data returned from auth.' });
     }
 
-    console.log(`Successfully authenticated user ${data.user.email}`);
+    // Fetch the user's profile from the public.profiles table
+    const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authData.user.id)
+        .single();
 
-    // The 'data' object contains session and user details.
-    // The session contains the access_token which is the JWT.
+    if (profileError || !profileData) {
+        console.error('Error fetching profile for user:', authData.user.id, profileError?.message);
+        // We can still let the user log in, but the frontend will have to handle a missing profile.
+        // Or we could return an error. For now, let's return an error.
+        return res.status(500).json({ message: 'User authenticated, but failed to fetch user profile.' });
+    }
+
     res.json({
         message: 'Login successful',
-        token: data.session.access_token,
-        user: data.user,
-    });
-});
-
-app.post('/api/auth/register', async (req, res) => {
-    const { email, password } = req.body;
-    
-    if (!email || !password) {
-        return res.status(400).json({ error: 'Email and password are required' });
-    }
-
-    const { data, error } = await supabase.auth.signUp({
-        email: email,
-        password: password,
-    });
-
-    if (error) {
-        console.error('Supabase registration error:', error.message);
-        return res.status(400).json({ message: error.message });
-    }
-
-    console.log(`User registered with email: ${data.user.email}`);
-
-    // The 'data' object contains user details.
-    res.status(201).json({
-        message: 'Registration successful',
-        token: data.session ? data.session.access_token : null,
-        user: data.user,
+        token: authData.session.access_token,
+        user: {...profileData, email: authData.user.email}
     });
 });
 
@@ -85,6 +70,55 @@ app.post('/api/auth/logout', authenticateToken, async (req, res) => {
     }
 
     res.status(200).json({ message: 'Logout successful' });
+});
+
+app.post('/api/auth/signup', async (req, res) => {
+    const { email, password, name } = req.body;
+
+    if (!email || !password || !name) {
+        return res.status(400).json({ error: 'Name, email and password are required' });
+    }
+
+    console.log(`Signup attempt for email: ${email}`);
+
+    // Create the user in the auth.users table
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: email,
+        password: password,
+        options: {
+            data: {
+                display_name: name, // This stores the name in the user's metadata
+            }
+        }
+    });
+
+    if (authError) {
+        console.error('Supabase signup error:', authError.message);
+        return res.status(400).json({ message: authError.message });
+    }
+    
+    if (!authData.user) {
+        return res.status(500).json({ message: 'Signup successful, but no user data returned.' });
+    }
+
+    // Insert the display name and username into the public.profiles table
+    const { error: profileError } = await supabase
+        .from('profiles')
+        .insert([
+            { id: authData.user.id, display_name: name, username: name },
+        ]);
+
+    if (profileError) {
+        // This is a tricky situation. The user is created in auth, but the profile failed.
+        // For now, we'll log the error and still return success to the user,
+        // as they can probably set their name later.
+        console.error('Error creating user profile:', profileError.message);
+    }
+
+    res.status(201).json({
+        message: 'Signup successful.',
+        user: authData.user,
+    });
 });
 
 app.get('/api/user/profile', authenticateToken, async (req, res) => {
